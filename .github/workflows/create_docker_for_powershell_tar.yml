@@ -1,0 +1,87 @@
+name: Create DockerForPowershell as TAR-File
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-export:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.extract_version.outputs.version }}
+    steps:
+
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Extract version from Tag
+      id: extract_version
+      run: |
+        git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+        VERSION=$(git tag --sort=creatordate | tail -1)
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Get latest release version
+      id: get_latest_release
+      run: |
+        LATEST_VERSION=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.tag_name // "0.0"' | sed 's/v//')
+        echo "LATEST_VERSION=$LATEST_VERSION" >> $GITHUB_ENV
+
+    # Build Docker image and export as tar-file
+    - name: Build and export Docker image
+      run: |
+        docker build -t docker_for_powershell .
+        export CONTAINER_ID=$(docker create docker_for_powershell)
+        docker export $CONTAINER_ID -o docker_for_powershell-$VERSION.tar
+
+    - name: Upload tar file as artifact
+      id: upload-artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: docker_for_powershell-${{ env.VERSION }}
+        path: docker_for_powershell-${{ env.VERSION }}.tar
+
+    - name: Prepare files
+      if: ${{ env.VERSION != env.LATEST_VERSION }}
+      run: |
+        zip docker_for_powershell-${{ env.VERSION }}.zip docker_for_powershell-${{ env.VERSION }}.tar
+        cat src/install_docker_for_powershell.ps1 | sed 's/version = .*$/version = "${{ env.VERSION }}"/' > src/install_docker_for_powershell_temp.ps1
+
+    - name: Create GitHub Release
+      if: ${{ env.VERSION != env.LATEST_VERSION }}
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.VERSION }}
+        release_name: DockerForPowershell ${{ env.VERSION }}
+        body: |
+          After downloading the installer, right-click it to open the context menu and run it with PowerShell.
+          You may also open the installer as a text file, and copy and paste all lines into a PowerShell window.
+        draft: false
+        prerelease: false
+
+    - name: Upload release asset
+      if: ${{ env.VERSION != env.LATEST_VERSION }}
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./docker_for_powershell-${{ env.VERSION }}.zip
+        asset_name: docker_for_powershell-${{ env.VERSION }}.zip
+        asset_content_type: application/zip
+
+    - name: Upload PowerShell script as release asset
+      if: ${{ env.VERSION != env.LATEST_VERSION }}
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./src/install_docker_for_powershell_temp.ps1
+        asset_name: docker_for_powershell-${{ env.VERSION }}-installer.ps1
+        asset_content_type: application/octet-stream
+
