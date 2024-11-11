@@ -2,7 +2,7 @@
 # Copy and paste all lines into the Windows PowerShell
 # ----------------------------------------------------
 
-$env:WSL_UTF8 = 1
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $name = "DockerForPowershell"
 $name_code = "docker_for_powershell"
 $version = "0.1"
@@ -22,7 +22,9 @@ if ((wsl --status) -eq $null) {
     }
 }
 
-if (((wsl --status) -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
+$env:WSL_UTF8 = 1
+$test = wsl --status
+if ($test -eq $null -or ($test -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
     Write-Host "Your computer must be rebooted to continue the installation of $name"
     $response = Read-Host "Reboot now? (y/n)"
     if ($response -eq "y") {
