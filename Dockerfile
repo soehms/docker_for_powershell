@@ -1,4 +1,5 @@
 FROM alpine
+LABEL maintainer="Sebastian Oehms <seb.oehms@gmail.com>"
 RUN apk update \
  && apk add docker openrc
 RUN STARTER="start-stop-daemon -b dockerd" \

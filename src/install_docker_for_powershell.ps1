@@ -1,13 +1,47 @@
-# ----------------------------------------------------
-# Copy and paste all lines into the Windows PowerShell
-# ----------------------------------------------------
+##############################################################################
+#       Copyright (C) 2024 Sebastian Oehms <seb.oehms@gmail.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#                  http://www.gnu.org/licenses/
+##############################################################################
+
+# -----------------------------------------------------------------------------------------------------------------
+# This code follows https://github.com/sagemath/sage-binder-env/blob/master/.github/workflows/create-wsl-image.yml
+# authored by Kwankyu Lee <ekwankyu@gmail.com>
+# -----------------------------------------------------------------------------------------------------------------
+# Copy and paste all lines into a Windows PowerShell
+# -----------------------------------------------------------------------------------------------------------------
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $name = "DockerForPowershell"
-$name_code = "docker_for_powershell"
 $version = "0.1"
+$name_code = "docker_for_powershell"
 $name_vers = "${name}-${version}"
 $name_code_vers = "${name_code}-${version}"
+$data_path = "$HOME\AppData\Local\${name}"
+$journal = "$data_path\journal-$version.log"
+
+function journal_message($text) {
+    $today = Get-Date -Format "dddd MM\/dd\/yyyy HH:mm:ss K"
+    $disk_space = @(foreach ($d  in Get-WmiObject -Class Win32_LogicalDisk) {if ($d.DeviceID -eq "C:") {$d.Size, $d.FreeSpace}})
+    $disk_size = $disk_space[0] / 1GB | % {$_.ToString("####.##")}
+    $disk_free = $disk_space[1] / 1GB | % {$_.ToString("####.##")}
+    if (-Not (Test-Path $journal)) {
+        "-------------------------------------------------" > $journal
+        "Journal file of install_docker_for_powershell.ps1" >> $journal
+        "-------------------------------------------------" >> $journal
+    }
+    "${today}: Size of drive C: ${disk_size} GB, free: ${disk_free} GB ($text)" >> $journal
+}
+
+# create folder if not done before and init journal file
+if (-Not (Test-Path $data_path)) {
+    New-Item -Path $data_path -ItemType Directory > $null
+    journal_message "Create folder"
+}
 
 # Check if WSL must be installed
 if ((wsl --status) -eq $null) {
@@ -15,20 +49,25 @@ if ((wsl --status) -eq $null) {
     Write-Host "After installation you have to reboot your computer an start the installer again!"
     $response = Read-Host "Do you agree to install it now? (y/n)"
     if ($response -eq "y") {
+        journal_message "before wsl --install"
         wsl --install --no-distribution
+        journal_message "after wsl --install"
     }
     else {
         Read-Host "OK. Press any key to exit"; exit
     }
 }
 
+# Check if reboot is necessary
 $env:WSL_UTF8 = 1
 $test = wsl --status
 if ($test -eq $null -or ($test -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
     Write-Host "Your computer must be rebooted to continue the installation of $name"
     $response = Read-Host "Reboot now? (y/n)"
     if ($response -eq "y") {
+        journal_message "before Restart-Computer"
         Restart-Computer
+        journal_message "after Restart-Computer"
     }
     else {
         Read-Host "OK. Press any key to exit"
@@ -43,7 +82,9 @@ if ((wsl -l -q) -contains $name_vers) {
     if ($response -eq "y") {
         Write-Host "Uninstalling ${name_vers}."
         # Unregister the existing DockerForPowershell WSL distribution
+        journal_message "before wsl --unregister"
         wsl --unregister $name_vers
+        journal_message "after wsl --unregister"
     }
     else {
         Read-Host "OK. Press any key to exit"; exit
@@ -53,24 +94,29 @@ if ((wsl -l -q) -contains $name_vers) {
 # Download and extract the tar-file
 $zip_url = "https://github.com/soehms/${name_code}/releases/download/${version}/${name_code_vers}.zip"
 $zip_local = "$PWD\${name_code}.zip"
-$data_path = "$HOME\AppData\Local\${name}"
 $tar_file = "$data_path\${name_code_vers}.tar"
 # Ensure the path exists
-if (-Not (Test-Path $data_path)) { New-Item -Path $data_path -ItemType Directory > $null }
 # Skip downloading and extracting if the tar file already exists
 if (-Not (Test-Path $tar_file)) {
     Write-Host "Downloading $name_vers..."
+    journal_message "before download"
     Start-BitsTransfer -Source $zip_url -Destination $zip_local
     Write-Host "Extracting..."
+    journal_message "before extracting"
     Expand-Archive -Path $zip_local -DestinationPath $data_path -Force
+    journal_message "after extracting"
     if (Test-Path $tar_file) { Remove-Item $zip_local }
+    journal_message "after removing zip"
 }
 else {
     Write-Host "$name_vers was already downloaded."
 }
+
 # Import the WSL image
 Write-Host "Start importing..."
+journal_message "before importing"
 wsl --import $name_vers $data_path/$version $tar_file
+journal_message "after importing"
 # Check if importing succeeded
 if (-Not ((wsl -l -q) -contains $name_vers)) {
     Write-Host "Importing $name_vers into WSL failed."
@@ -79,4 +125,5 @@ else
 {
     Write-Host "Importing $name_vers into WSL successfully finished."
     Remove-Item $tar_file
+    journal_message "after removing tar"
 }
