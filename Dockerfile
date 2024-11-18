@@ -6,3 +6,5 @@ RUN STARTER="start-stop-daemon -b dockerd" \
  && echo $STARTER > /root/start_dockerd \
  && echo $STARTER >> /etc/profile \
  && chmod a+x /root/start_dockerd
+RUN rc-update add local default \
+ && cp /root/start_dockerd /etc/local.d/dockerd.start

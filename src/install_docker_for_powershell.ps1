@@ -12,10 +12,12 @@
 # This code follows https://github.com/sagemath/sage-binder-env/blob/master/.github/workflows/create-wsl-image.yml
 # authored by Kwankyu Lee <ekwankyu@gmail.com>
 # -----------------------------------------------------------------------------------------------------------------
-# Copy and paste all lines into a Windows PowerShell
-# -----------------------------------------------------------------------------------------------------------------
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+# ----------------------------------------------------
+# Copy and paste all lines into a Windows PowerShell
+# ----------------------------------------------------
+
+$env:WSL_UTF8 = 1
 $name = "DockerForPowershell"
 $version = "0.1"
 $name_code = "docker_for_powershell"
@@ -37,6 +39,38 @@ function journal_message($text) {
     "${today}: Size of drive C: ${disk_size} GB, free: ${disk_free} GB ($text)" >> $journal
 }
 
+function check_reboot($wsl_response) {
+    $name = $global:name
+    $ask_reboot = $false
+    if ($wsl_response -eq $null) {
+        Write-Host "It seems that the Windows Subsystem for Linux (WSL) is still not active!"
+        $ask_reboot = $true
+    }
+    $wsl_str = $wsl_response -join ' ' | Out-String
+    if ($wsl_str.Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
+        Write-Host "It seems that the Windows Subsystem for Linux (WSL) is not working, yet!"
+        $ask_reboot = $true
+    }
+    if ($wsl_str.Contains('enablevirtualization') -or $wsl_str.Contains('WSL_E_DEFAULT_DISTRO_NOT_FOUND')) {
+        Write-Host "It seems that virtualization is not enabled in your BIOS settings!  ${name} does not run without it!"
+        Write-Host "For help have a look at https://support.microsoft.com/en-us/windows/enable-virtualization-on-windows-c5578302-6e43-4b4b-a449-8ced115f58e1"
+        $ask_reboot = $true
+    }
+    if ($ask_reboot) {
+        Write-Host "Your computer must be rebooted to continue the installation of ${name}"
+        $response = Read-Host "Reboot now? (y/n)"
+        if ($response -eq "y") {
+            journal_message "before Restart-Computer"
+            Restart-Computer
+            journal_message "after Restart-Computer"
+        }
+        else {
+            Read-Host "OK. Press any key to exit"
+        }
+        exit
+    }
+}
+
 # create folder if not done before and init journal file
 if (-Not (Test-Path $data_path)) {
     New-Item -Path $data_path -ItemType Directory > $null
@@ -44,7 +78,8 @@ if (-Not (Test-Path $data_path)) {
 }
 
 # Check if WSL must be installed
-if ((wsl --status) -eq $null) {
+$test_wsl = wsl --status
+if ($test_wsl -eq $null) {
     Write-Host "The Windows Subsystem for Linux (WSL) is not installed, but needed for ${name}."
     Write-Host "After installation you have to reboot your computer an start the installer again!"
     $response = Read-Host "Do you agree to install it now? (y/n)"
@@ -59,21 +94,7 @@ if ((wsl --status) -eq $null) {
 }
 
 # Check if reboot is necessary
-$env:WSL_UTF8 = 1
-$test = wsl --status
-if ($test -eq $null -or ($test -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
-    Write-Host "Your computer must be rebooted to continue the installation of $name"
-    $response = Read-Host "Reboot now? (y/n)"
-    if ($response -eq "y") {
-        journal_message "before Restart-Computer"
-        Restart-Computer
-        journal_message "after Restart-Computer"
-    }
-    else {
-        Read-Host "OK. Press any key to exit"
-    }
-    exit
-}
+check_reboot $test_wsl
 
 # Check if DockerForPowershell already exists in WSL
 if ((wsl -l -q) -contains $name_vers) {
@@ -115,11 +136,12 @@ else {
 # Import the WSL image
 Write-Host "Start importing..."
 journal_message "before importing"
-wsl --import $name_vers $data_path/$version $tar_file
+$wsl_response = wsl --import $name_vers $data_path/$version $tar_file
 journal_message "after importing"
 # Check if importing succeeded
 if (-Not ((wsl -l -q) -contains $name_vers)) {
     Write-Host "Importing $name_vers into WSL failed."
+    check_reboot $wsl_response
 }
 else
 {
