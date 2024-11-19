@@ -19,12 +19,13 @@
 
 $env:WSL_UTF8 = 1
 $name = "DockerForPowershell"
-$version = "0.1"
+$version = "0.2"
 $name_code = "docker_for_powershell"
 $name_vers = "${name}-${version}"
 $name_code_vers = "${name_code}-${version}"
 $data_path = "$HOME\AppData\Local\${name}"
 $journal = "$data_path\journal-$version.log"
+$url_bios_help = "https://support.microsoft.com/en-us/windows/enable-virtualization-on-windows-c5578302-6e43-4b4b-a449-8ced115f58e1"
 
 function journal_message($text) {
     $today = Get-Date -Format "dddd MM\/dd\/yyyy HH:mm:ss K"
@@ -40,21 +41,32 @@ function journal_message($text) {
 }
 
 function check_reboot($wsl_response) {
-    $name = $global:name
     $ask_reboot = $false
     if ($wsl_response -eq $null) {
+        journal_message "WSL response null"
         Write-Host "It seems that the Windows Subsystem for Linux (WSL) is still not active!"
         $ask_reboot = $true
     }
     $wsl_str = $wsl_response -join ' ' | Out-String
+    journal_message "WSL response: ${wsl_str}"
     if ($wsl_str.Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
         Write-Host "It seems that the Windows Subsystem for Linux (WSL) is not working, yet!"
         $ask_reboot = $true
     }
     if ($wsl_str.Contains('enablevirtualization') -or $wsl_str.Contains('WSL_E_DEFAULT_DISTRO_NOT_FOUND')) {
         Write-Host "It seems that virtualization is not enabled in your BIOS settings!  ${name} does not run without it!"
-        Write-Host "For help have a look at https://support.microsoft.com/en-us/windows/enable-virtualization-on-windows-c5578302-6e43-4b4b-a449-8ced115f58e1"
-        $ask_reboot = $true
+        Write-Host "For help have a look at ${url_bios_help}"
+        $response = Read-Host "Open help in your browser? (y/n)"
+        if ($response -eq "y") {
+            journal_message "before Help"
+            Start-Process $url_bios_help
+            journal_message "after Help"
+        }
+        $response = Read-Host "Shutdown your computer to fix BIOS settings (y/n)"
+        if ($response -eq "y") {
+            journal_message "Shutdown"
+            Start-Process $url_bios_help
+        }
     }
     if ($ask_reboot) {
         Write-Host "Your computer must be rebooted to continue the installation of ${name}"
@@ -149,3 +161,4 @@ else
     Remove-Item $tar_file
     journal_message "after removing tar"
 }
+Read-Host "Press any key to finish"
