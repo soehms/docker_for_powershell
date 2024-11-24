@@ -65,7 +65,7 @@ function check_reboot($wsl_response) {
         $response = Read-Host "Shutdown your computer to fix BIOS settings (y/n)"
         if ($response -eq "y") {
             journal_message "Shutdown"
-            Start-Process $url_bios_help
+            Stop-Computer
         }
     }
     if ($ask_reboot) {
