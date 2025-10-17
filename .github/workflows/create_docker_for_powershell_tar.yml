@@ -31,7 +31,7 @@ jobs:
     # Build Docker image and export as tar-file
     - name: Build and export Docker image
       run: |
-        docker build -t docker_for_powershell .
+        docker build -f UbuntuDockerfile -t docker_for_powershell .
         export CONTAINER_ID=$(docker create docker_for_powershell)
         docker export $CONTAINER_ID -o docker_for_powershell-$VERSION.tar
 
