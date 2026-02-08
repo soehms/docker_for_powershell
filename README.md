@@ -1,9 +1,9 @@
 # Docker for Powershell
-Use Docker on Windows without Docker-Desktop via a custom WSL-distribution based on Alpine Linux
+Use Docker on Windows without Docker-Desktop via a custom WSL-distribution based on Ubuntu (since version 0.3, before Alpine Linux was used).
 
 ## Installation
 
-Download the [installer](https://github.com/soehms/docker_for_powershell/releases/download/0.1/docker_for_powershell-0.2-installer.ps1) and execute it with Powershell. If you don't have WSL installed, you are asked to install it. This will need a reboot of your computer. In this case restart the installer afterwards.
+Download the [installer](https://github.com/soehms/docker_for_powershell/releases/download/0.3/docker_for_powershell-0.3-installer.ps1) and execute it with Powershell. If you don't have WSL installed, you are asked to install it. This will need a reboot of your computer. In this case restart the installer afterwards.
 
 To check if the installation has been successful type `wsl -l -q` in a powershell terminal.  You should see the `WSL` distribution of `DockerForPowershell` there:
 
@@ -20,20 +20,30 @@ DockerForPowershell-0.2
 Start the Docker daemon by (replacing the version number if necessary):
 
 ```
+PS C:\Users\sebastian> Start-Job -ScriptBlock {wsl -d DockerForPowershell-0.3 -- sudo dockerd}
+
+Id     Name            PSJobTypeName   State         HasMoreData     Location             Command
+--     ----            -------------   -----         -----------     --------             -------
+1      Job1            BackgroundJob   Running       True            localhost            wsl -d DockerForPowers...
+```
+
+If you are using a version < 0.3 you should run the following line instead:
+
+```
 wsl -d DockerForPowershell-0.2 -e sh /root/start_dockerd
 ```
 
 Use Docker by
 
 ```
-wsl -d DockerForPowershell-0.2 -e docker <arguments>
+wsl -d DockerForPowershell-0.2 -- docker <arguments>
 ```
 
 To have it more comfortable you may define these two functions:
 
 ```
-function docker {return wsl -d DockerForPowershell-0.2 -e docker $args}
-function start_docker_daemon {return wsl -d DockerForPowershell-0.2 -e sh /root/start_dockerd}
+function docker {return wsl -d DockerForPowershell-0.2 -- docker $args}
+function start_docker_daemon {return Start-Job -ScriptBlock {wsl -d DockerForPowershell-0.3 -- sudo dockerd}}
 ```
 
 Using them you shoud see an output like this:
